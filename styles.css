@@ -1,8 +1,175 @@
-/*
+/* ── Tagged lines ──────────────────────────────────────────────────────────── */
 
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
+/* Reading view: applied directly to <p> or <li> elements */
+.markdown-reading-view .taggable-tagged-line {
+	border-radius: 3px;
+	margin: 1px 0;
+	padding-left: 0.6em;
+	transition: background-color 0.1s ease;
+}
 
-If your plugin does not need CSS, delete this file.
+/* Editor / live preview: applied to the .cm-line wrapper */
+.cm-editor .taggable-tagged-line.cm-line {
+	border-radius: 2px;
+}
 
-*/
+/* ── Marker text ───────────────────────────────────────────────────────────── */
+
+.taggable-marker-hidden {
+	display: none;
+}
+
+.taggable-marker-faint {
+	opacity: 0.35;
+	font-size: 0.85em;
+	font-variant: small-caps;
+	letter-spacing: 0.03em;
+}
+
+/* ── Sidebar browser ───────────────────────────────────────────────────────── */
+
+.taggable-browser {
+	padding: 8px 0;
+	overflow-y: auto;
+}
+
+.taggable-browser-header {
+	padding: 4px 12px 8px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	margin-bottom: 4px;
+}
+
+.taggable-browser-header h5 {
+	margin: 0;
+	font-weight: 600;
+	color: var(--text-muted);
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	font-size: 0.75em;
+}
+
+.taggable-tag-list {
+	display: flex;
+	flex-direction: column;
+}
+
+.taggable-tag-row {
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.taggable-tag-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 7px 12px;
+	cursor: pointer;
+	user-select: none;
+	transition: background-color 0.1s ease;
+}
+
+.taggable-tag-header:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+.taggable-tag-header::before {
+	content: '▸';
+	font-size: 0.7em;
+	color: var(--text-faint);
+	flex-shrink: 0;
+	width: 10px;
+	transition: transform 0.15s ease;
+}
+
+.taggable-tag-header-expanded::before {
+	transform: rotate(90deg);
+}
+
+.taggable-swatch {
+	display: inline-block;
+	width: 12px;
+	height: 12px;
+	border-radius: 3px;
+	flex-shrink: 0;
+}
+
+.taggable-tag-label-text {
+	flex: 1;
+	font-size: 0.9em;
+	font-weight: 500;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.taggable-count-badge {
+	font-size: 0.75em;
+	font-weight: 600;
+	padding: 1px 6px;
+	border-radius: 10px;
+	flex-shrink: 0;
+}
+
+.taggable-file-list {
+	display: none;
+	padding: 0 0 4px 0;
+	background-color: var(--background-secondary);
+}
+
+.taggable-file-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 5px 12px 5px 30px;
+	cursor: pointer;
+	transition: background-color 0.1s ease;
+}
+
+.taggable-file-row:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+.taggable-file-name {
+	font-size: 0.85em;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.taggable-file-count {
+	font-size: 0.75em;
+	color: var(--text-faint);
+	flex-shrink: 0;
+	margin-left: 6px;
+}
+
+.taggable-no-occurrences {
+	padding: 4px 12px 4px 30px;
+	font-size: 0.8em;
+	color: var(--text-faint);
+}
+
+.taggable-empty-state {
+	padding: 16px 12px;
+	color: var(--text-muted);
+	font-size: 0.9em;
+}
+
+/* ── Settings warnings ─────────────────────────────────────────────────────── */
+
+.taggable-warnings {
+	border: 1px solid var(--color-yellow);
+	border-radius: 4px;
+	padding: 8px 12px;
+	background-color: var(--background-modifier-warning);
+}
+
+.taggable-warning-item {
+	margin: 4px 0;
+	font-size: 0.85em;
+	font-family: var(--font-monospace);
+	color: var(--text-warning);
+}
+
+.taggable-settings-textarea {
+	width: 100%;
+}

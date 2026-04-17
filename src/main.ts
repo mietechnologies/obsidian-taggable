@@ -1,99 +1,228 @@
-import {App, Editor, MarkdownView, Modal, Notice, Plugin} from 'obsidian';
-import {DEFAULT_SETTINGS, MyPluginSettings, SampleSettingTab} from "./settings";
+import { debounce, Notice, Plugin, TFile } from 'obsidian';
+import { DEFAULT_SETTINGS, TaggableSettingTab, TaggableSettings } from './settings';
+import { parseTagFile, TagDefinition } from './tagParser';
+import { buildMatchers, CompiledMatcher } from './matcher';
+import { buildOccurrenceIndex, OccurrenceIndex } from './occurrenceIndex';
+import { processReadingViewElement } from './readingViewRenderer';
+import { buildEditorExtension } from './editorExtension';
+import { TagBrowserView, TAG_BROWSER_VIEW_TYPE } from './tagBrowserView';
+import { isExcluded } from './utils';
 
-// Remember to rename these classes and interfaces!
+const DEFAULT_TAG_FILE_CONTENT =
+`TASK :: #ff33aa
+IDEA :: #33ccff
+WAITING :: #ffaa00
+NEXT ACTION :: #66cc66
+`;
 
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+export default class TaggablePlugin extends Plugin {
+	settings: TaggableSettings = { ...DEFAULT_SETTINGS };
+	tags: TagDefinition[] = [];
+	matchers: CompiledMatcher[] = [];
+	occurrenceIndex: OccurrenceIndex | null = null;
+	parseWarnings: string[] = [];
+	private buildIndexVersion = 0;
 
-	async onload() {
+	/**
+	 * Incremented each time matchers are rebuilt so the CM6 ViewPlugin can
+	 * detect that a re-decoration is needed without an external StateEffect.
+	 */
+	matchersVersion = 0;
+
+	async onload(): Promise<void> {
 		await this.loadSettings();
+		await this.ensureTagFile();
+		await this.reloadTags();
 
-		// This creates an icon in the left ribbon.
-		this.addRibbonIcon('dice', 'Sample', (evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
+		// Reading view post-processor
+		this.registerMarkdownPostProcessor((el, ctx) => {
+			if (!this.settings.enableReadingView) return;
+			const file = this.app.vault.getAbstractFileByPath(ctx.sourcePath);
+			if (file instanceof TFile && isExcluded(file, this.settings)) return;
+			processReadingViewElement(el, this.matchers, this.settings);
 		});
 
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status bar text');
+		// Editor / live-preview extension
+		this.registerEditorExtension(buildEditorExtension(this));
 
-		// This adds a simple command that can be triggered anywhere
-		this.addCommand({
-			id: 'open-modal-simple',
-			name: 'Open modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
-			}
-		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'replace-selected',
-			name: 'Replace selected content',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				editor.replaceSelection('Sample editor command');
-			}
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-modal-complex',
-			name: 'Open modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
+		// Sidebar view
+		this.registerView(
+			TAG_BROWSER_VIEW_TYPE,
+			leaf => new TagBrowserView(leaf, this)
+		);
 
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
+		// Ribbon icon
+		this.addRibbonIcon('tag', 'Open tag browser', () => {
+			void this.openTagBrowser();
+		});
+
+		// Commands
+		this.addCommand({
+			id: 'reload-tags',
+			name: 'Reload custom tags',
+			callback: async () => {
+				await this.reloadTags();
+				new Notice('Taggable: tags reloaded.');
+			},
+		});
+
+		this.addCommand({
+			id: 'open-tag-definition-file',
+			name: 'Open tag definition file',
+			callback: async () => {
+				const file = this.app.vault.getAbstractFileByPath(this.settings.tagDefinitionFile);
+				if (file instanceof TFile) {
+					await this.app.workspace.getLeaf(false).openFile(file);
+				} else {
+					new Notice(`Taggable: file not found — ${this.settings.tagDefinitionFile}`);
 				}
-				return false;
-			}
+			},
 		});
 
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
-
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			new Notice("Click");
+		this.addCommand({
+			id: 'open-tag-browser',
+			name: 'Open tag browser',
+			callback: () => void this.openTagBrowser(),
 		});
 
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
+		this.addCommand({
+			id: 'create-tag-definition-file',
+			name: 'Create tag definition file if missing',
+			callback: async () => {
+				await this.ensureTagFile(true);
+				new Notice(`Taggable: tag definition file ready at ${this.settings.tagDefinitionFile}`);
+			},
+		});
 
+		// Watch for changes to the tag definition file
+		const debouncedReload = debounce(async () => {
+			await this.reloadTags();
+		}, 500, true);
+
+		this.registerEvent(
+			this.app.vault.on('modify', file => {
+				if (file instanceof TFile && file.path === this.settings.tagDefinitionFile) {
+					debouncedReload();
+				}
+			})
+		);
+
+		this.addSettingTab(new TaggableSettingTab(this.app, this));
 	}
 
-	onunload() {
+	onunload(): void {
+		// Registered views and events are cleaned up automatically by Obsidian.
 	}
 
-	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<MyPluginSettings>);
+	async loadSettings(): Promise<void> {
+		this.settings = Object.assign(
+			{},
+			DEFAULT_SETTINGS,
+			(await this.loadData()) as Partial<TaggableSettings>
+		);
 	}
 
-	async saveSettings() {
+	async saveSettings(): Promise<void> {
 		await this.saveData(this.settings);
 	}
-}
 
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
+	async reloadTags(): Promise<void> {
+		const path = this.settings.tagDefinitionFile;
+		const abstract = this.app.vault.getAbstractFileByPath(path);
+
+		if (!(abstract instanceof TFile)) {
+			this.tags = [];
+			this.matchers = [];
+			this.parseWarnings = [];
+			this.occurrenceIndex = null;
+			this.matchersVersion++;
+			this.refreshTagBrowser();
+			return;
+		}
+
+		const content = await this.app.vault.cachedRead(abstract);
+		const { tags, warnings } = parseTagFile(content, this.settings.separator);
+
+		for (const w of warnings) {
+			console.warn(`[Taggable] ${w}`);
+		}
+
+		this.parseWarnings = warnings;
+		this.tags = tags;
+		this.matchers = buildMatchers(tags, this.settings);
+		this.matchersVersion++;
+
+		this.refreshTagBrowser();
+
+		// Build occurrence index asynchronously so we don't block the UI
+		void this.buildIndex(++this.buildIndexVersion);
 	}
 
-	onOpen() {
-		let {contentEl} = this;
-		contentEl.setText('Woah!');
+	private async buildIndex(version: number): Promise<void> {
+		const index = await buildOccurrenceIndex(
+			this.app,
+			this.matchers,
+			this.settings
+		);
+
+		if (version !== this.buildIndexVersion) {
+			return;
+		}
+
+		this.occurrenceIndex = index;
+		this.refreshTagBrowser();
 	}
 
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
+	private refreshTagBrowser(): void {
+		for (const leaf of this.app.workspace.getLeavesOfType(TAG_BROWSER_VIEW_TYPE)) {
+			if (leaf.view instanceof TagBrowserView) {
+				void leaf.view.render();
+			}
+		}
+	}
+
+	async openTagBrowser(): Promise<void> {
+		const existing = this.app.workspace.getLeavesOfType(TAG_BROWSER_VIEW_TYPE);
+		if (existing.length > 0) {
+			void this.app.workspace.revealLeaf(existing[0]!);
+			return;
+		}
+		const leaf = this.app.workspace.getRightLeaf(false);
+		if (leaf) {
+			await leaf.setViewState({ type: TAG_BROWSER_VIEW_TYPE, active: true });
+			void this.app.workspace.revealLeaf(leaf);
+		}
+	}
+
+	private async ensureTagFile(force = false): Promise<void> {
+		if (!this.settings.autoCreateTagFile && !force) return;
+
+		const path = this.settings.tagDefinitionFile;
+		if (this.app.vault.getAbstractFileByPath(path)) return;
+
+		try {
+			// Create intermediate folders if needed
+			const dir = path.includes('/')
+				? path.substring(0, path.lastIndexOf('/'))
+				: null;
+			if (dir) {
+				await this.ensureFolders(dir);
+			}
+			await this.app.vault.create(path, DEFAULT_TAG_FILE_CONTENT);
+		} catch (e) {
+			console.error('[Taggable] Failed to create tag definition file:', e);
+		}
+	}
+
+	private async ensureFolders(path: string): Promise<void> {
+		const segments = path.split('/').filter(Boolean);
+		let current = '';
+
+		for (const segment of segments) {
+			current = current ? `${current}/${segment}` : segment;
+			if (!this.app.vault.getAbstractFileByPath(current)) {
+				await this.app.vault.createFolder(current);
+			}
+		}
 	}
 }

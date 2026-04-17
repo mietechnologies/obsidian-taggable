@@ -1,90 +1,154 @@
-# Obsidian Sample Plugin
+# Taggable
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+Taggable provides customizable, user-defined visual line tags for Obsidian notes.
 
-This project uses TypeScript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in TypeScript Definition format, which contains TSDoc comments describing what it does.
+You define named markers with colors in a single markdown file. Any note line that starts with a matching marker gets a colored left-border and tinted background highlight. The file content is **never modified** — all styling is purely visual.
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open modal (simple)" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and output 'click' to the console.
-- Registers a global interval which logs 'setInterval' to the console.
+---
 
-## First time developing plugins?
+## How it works
 
-Quick starting guide for new plugin devs:
+1. Create a tag definition file (default: `taggable.md`) at the root of your vault.
+2. Add tag definitions, one per line:
 
-- Check if [someone already developed a plugin for what you want](https://obsidian.md/plugins)! There might be an existing plugin similar enough that you can partner up with.
-- Make a copy of this repo as a template with the "Use this template" button (login to GitHub if you don't see it).
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/your-plugin-name` folder.
-- Install NodeJS, then run `npm i` in the command line under your repo folder.
-- Run `npm run dev` to compile your plugin from `main.ts` to `main.js`.
-- Make changes to `main.ts` (or create new `.ts` files). Those changes should be automatically compiled into `main.js`.
-- Reload Obsidian to load the new version of your plugin.
-- Enable plugin in settings window.
-- For updates to the Obsidian API run `npm update` in the command line under your repo folder.
-
-## Releasing new releases
-
-- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
-- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
-- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/obsidian-sample-plugin/releases
-- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments. Note: The manifest.json file must be in two places, first the root path of your repository and also in the release.
-- Publish the release.
-
-> You can simplify the version bump process by running `npm version patch`, `npm version minor` or `npm version major` after updating `minAppVersion` manually in `manifest.json`.
-> The command will bump version in `manifest.json` and `package.json`, and add the entry for the new version to `versions.json`
-
-## Adding your plugin to the community plugin list
-
-- Check the [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines).
-- Publish an initial version.
-- Make sure you have a `README.md` file in the root of your repo.
-- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
-
-## How to use
-
-- Clone this repo.
-- Make sure your NodeJS is at least v16 (`node --version`).
-- `npm i` or `yarn` to install dependencies.
-- `npm run dev` to start compilation in watch mode.
-
-## Manually installing the plugin
-
-- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
-
-## Improve code quality with eslint
-- [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code. 
-- This project already has eslint preconfigured, you can invoke a check by running`npm run lint`
-- Together with a custom eslint [plugin](https://github.com/obsidianmd/eslint-plugin) for Obsidan specific code guidelines.
-- A GitHub action is preconfigured to automatically lint every commit on all branches.
-
-## Funding URL
-
-You can include funding URLs where people who use your plugin can financially support it.
-
-The simple way is to set the `fundingUrl` field to your link in your `manifest.json` file:
-
-```json
-{
-    "fundingUrl": "https://buymeacoffee.com"
-}
+```
+TASK :: #ff33aa
+IDEA :: #33ccff
+WAITING :: #ffaa00
+NEXT ACTION :: #66cc66
 ```
 
-If you have multiple URLs, you can also do:
+3. In any note, prefix a line with a defined marker:
 
-```json
-{
-    "fundingUrl": {
-        "Buy Me a Coffee": "https://buymeacoffee.com",
-        "GitHub Sponsor": "https://github.com/sponsors",
-        "Patreon": "https://www.patreon.com/"
-    }
-}
+```markdown
+- [ ] TASK :: Get groceries
+- IDEA :: Build a plugin
+1. WAITING :: Hear back from vendor
+> NEXT ACTION :: Review the proposal
 ```
 
-## API Documentation
+The marker (`TASK ::`) is hidden (or faintly shown) and the line receives a colored left-border and tinted background.
 
-See https://docs.obsidian.md
+---
+
+## Tag definition file format
+
+```
+LABEL <separator> <hex color>
+```
+
+- **LABEL** — any text, including spaces (multi-word labels supported)
+- **separator** — defaults to `::`, configurable in settings
+- **hex color** — `#RGB` or `#RRGGBB` format
+
+Lines beginning with `#` or `//` are treated as comments and ignored. Blank lines are ignored.
+
+### Example
+
+```
+# Status tags
+TASK :: #ff33aa
+IDEA :: #33ccff
+WAITING :: #ffaa00
+NEXT ACTION :: #66cc66
+
+// Project tags
+BLOCKED :: #ff4444
+DONE :: #44cc44
+```
+
+---
+
+## Matching rules
+
+- **Longest label wins.** If you have both `ACTION` and `NEXT ACTION`, a line starting with `NEXT ACTION ::` will match `NEXT ACTION`, not `ACTION`.
+- **Case-insensitive by default** — `task ::` and `TASK ::` are treated as the same marker.
+- **Near-line-start matching in the editor** (enabled by default) — editor highlighting and vault occurrence scanning expect the marker after optional markdown syntax: list bullets (`-`, `*`, `+`, `1.`), task checkboxes (`[ ]`, `[x]`), or blockquote markers (`>`).
+- **Reading view is stricter** — it styles only plain paragraphs and list items whose visible text starts with the marker.
+
+Lines in these formats all match:
+
+```
+TASK :: Plain line
+- TASK :: List item
+- [ ] TASK :: Task checkbox
+1. TASK :: Numbered list
+```
+
+---
+
+## Building
+
+```bash
+npm install
+npm run dev    # watch mode
+npm run build  # production build
+```
+
+---
+
+## Settings
+
+| Setting | Default | Description |
+|---|---|---|
+| Tag definition file | `taggable.md` | Path to the tag definition file |
+| Separator | `::` | Separator between label and color (definition file) and between label and content (notes) |
+| Auto-create tag file | on | Create the definition file with examples if it doesn't exist |
+| Enable reading view styling | on | Highlight tagged lines in reading view |
+| Enable editor styling | on | Highlight tagged lines in the editor |
+| Case-sensitive matching | off | Treat `TASK` and `task` as distinct |
+| Only match near line start in editor | on | Require marker near the beginning of a line for editor highlighting and occurrence scanning |
+| Background opacity | 0.15 | Opacity of the colored background tint (0–1) |
+| Show marker faintly | off | Dim the marker instead of hiding it in reading view |
+| Excluded files | _(empty)_ | One file path or name per line — skipped for scanning and styling |
+| Excluded folders | _(empty)_ | One folder path per line — skipped for scanning and styling |
+
+---
+
+## Commands
+
+- **Reload custom tags** — re-read the tag definition file and rebuild all matchers
+- **Open tag definition file** — open your `taggable.md` in the editor
+- **Open tag browser** — open the sidebar panel
+- **Create tag definition file if missing** — manually trigger file creation
+
+---
+
+## Tag browser (sidebar)
+
+The tag browser lists all defined tags with:
+- A colored swatch
+- The label name
+- Total occurrence count across the vault
+
+Click any tag row to expand a list of files that contain it, sorted by occurrence count. Click a file name to open it.
+
+---
+
+## Reading view vs editor view
+
+| | Reading view | Editor / live preview |
+|---|---|---|
+| Marker hiding | Hidden completely (or faint, per setting) | Always shown faintly — hiding via `display:none` breaks cursor navigation in CM6 |
+| Reliability | High — DOM post-processing on rendered HTML | Good — CM6 ViewPlugin; decorations rebuild on any document or viewport change |
+| When styled | On note render | On every visible-range update (next interaction after tag reload) |
+
+---
+
+## Known limitations
+
+- **Visual settings** (opacity, faint marker toggle) take effect when notes are re-opened in reading view. Editor styling updates on the next user interaction.
+- **Marker inside inline markup** (e.g. `**TASK** :: content`) — marker hiding in reading view only works on plain text nodes; inline-markup markers will not be hidden.
+- **Nested list items** may inherit the parent item's background tint color.
+- The **occurrence index** is built asynchronously after each tag reload. The sidebar count may briefly show 0 while indexing.
+- **Excluded files / folders** use simple path prefix and exact-name matching, not full glob patterns.
+
+---
+
+## Future ideas
+
+- Richer glob pattern support for exclusions
+- Click-to-filter: show only lines matching a given tag within an open file
+- Export tag occurrence report
+- Tag color picker in settings UI
+- Hover preview showing where a tag is defined
