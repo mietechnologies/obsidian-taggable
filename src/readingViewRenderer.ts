@@ -23,6 +23,15 @@ export function processReadingViewElement(
 	}
 }
 
+export function refreshReadingViewElement(
+	el: HTMLElement,
+	matchers: CompiledMatcher[],
+	settings: TaggableSettings
+): void {
+	clearReadingViewElement(el);
+	processReadingViewElement(el, matchers, settings);
+}
+
 function processLineElement(
 	lineEl: HTMLElement,
 	matchers: CompiledMatcher[],
@@ -55,6 +64,31 @@ function processLineElement(
 	}
 }
 
+function clearReadingViewElement(el: HTMLElement): void {
+	const processed = Array.from(
+		el.querySelectorAll<HTMLElement>('.taggable-tagged-line, [data-taggable-processed], [data-taggable-label]')
+	);
+
+	if (
+		el.matches('.taggable-tagged-line, [data-taggable-processed], [data-taggable-label]')
+	) {
+		processed.unshift(el);
+	}
+
+	for (const lineEl of processed) {
+		lineEl.removeAttribute('data-taggable-processed');
+		lineEl.removeAttribute('data-taggable-label');
+		lineEl.classList.remove('taggable-tagged-line');
+		lineEl.style.removeProperty('border-left');
+		lineEl.style.removeProperty('background-color');
+	}
+
+	const markers = Array.from(el.querySelectorAll<HTMLElement>('.taggable-marker'));
+	for (const marker of markers) {
+		marker.replaceWith(document.createTextNode(marker.textContent ?? ''));
+	}
+}
+
 /**
  * Returns concatenated text from direct children, stopping at the first
  * block-level descendant so we don't pull in nested list content.
@@ -73,20 +107,15 @@ function getDirectText(el: HTMLElement): string {
 	return text;
 }
 
-/**
- * Finds the first text node in el that contains markerText and wraps it in a
- * styled span. Case-insensitive. Does nothing if the text node is not found.
- */
 function wrapMarkerText(
 	el: HTMLElement,
 	markerText: string,
 	settings: TaggableSettings
 ): void {
 	const markerLower = markerText.toLowerCase();
+	const textNodes = getInlineTextNodes(el);
 
-	for (const node of Array.from(el.childNodes)) {
-		if (node.nodeType !== Node.TEXT_NODE) continue;
-
+	for (const node of textNodes) {
 		const raw = node.textContent ?? '';
 		const idx = raw.toLowerCase().indexOf(markerLower);
 		if (idx === -1) continue;
@@ -107,7 +136,35 @@ function wrapMarkerText(
 
 		if (after) frag.appendChild(document.createTextNode(after));
 
-		el.replaceChild(frag, node);
+		node.parentNode?.replaceChild(frag, node);
 		return;
 	}
+}
+
+function getInlineTextNodes(el: HTMLElement): Text[] {
+	const nodes: Text[] = [];
+	const stack: Node[] = Array.from(el.childNodes).reverse();
+
+	while (stack.length > 0) {
+		const node = stack.pop()!;
+		if (node.nodeType === Node.TEXT_NODE) {
+			nodes.push(node as Text);
+			continue;
+		}
+
+		if (node.nodeType !== Node.ELEMENT_NODE) {
+			continue;
+		}
+
+		const child = node as HTMLElement;
+		if (BLOCK_TAGS.has(child.tagName)) {
+			continue;
+		}
+
+		for (const grandchild of Array.from(child.childNodes).reverse()) {
+			stack.push(grandchild);
+		}
+	}
+
+	return nodes;
 }

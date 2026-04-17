@@ -1,9 +1,10 @@
+import { editorInfoField } from 'obsidian';
 import { ViewPlugin, Decoration, EditorView } from '@codemirror/view';
 import type { DecorationSet, ViewUpdate, PluginValue } from '@codemirror/view';
 import { RangeSetBuilder } from '@codemirror/state';
 import type { Extension } from '@codemirror/state';
 import type TaggablePlugin from './main';
-import { hexToRgba } from './utils';
+import { hexToRgba, isExcluded } from './utils';
 
 /**
  * Build the CM6 editor extension that decorates tagged lines in live-preview
@@ -13,10 +14,7 @@ import { hexToRgba } from './utils';
  * the document and viewport haven't changed (e.g. after a tag reload while the
  * file is already open).
  *
- * Tradeoffs vs reading view:
- * - The marker is dimmed rather than hidden to avoid cursor-navigation issues
- *   caused by `display:none` inside CM6 decorations.
- * - Line styling is applied via inline attributes on the .cm-line element.
+ * Line styling is applied via inline attributes on the .cm-line element.
  */
 export function buildEditorExtension(plugin: TaggablePlugin): Extension {
 	return ViewPlugin.fromClass(
@@ -32,6 +30,7 @@ export function buildEditorExtension(plugin: TaggablePlugin): Extension {
 			update(update: ViewUpdate) {
 				if (
 					update.docChanged ||
+					update.selectionSet ||
 					update.viewportChanged ||
 					this.knownVersion !== plugin.matchersVersion
 				) {
@@ -47,13 +46,18 @@ export function buildEditorExtension(plugin: TaggablePlugin): Extension {
 					return Decoration.none;
 				}
 
+				const file = view.state.field(editorInfoField).file;
+				if (!file || isExcluded(file, plugin.settings)) {
+					return Decoration.none;
+				}
+
 				const builder = new RangeSetBuilder<Decoration>();
 
 				for (const { from, to } of view.visibleRanges) {
 					let pos = from;
 					while (pos <= to) {
 						const line = view.state.doc.lineAt(pos);
-						this.decorateLine(line.text, line.from, builder);
+						this.decorateLine(view, line.text, line.from, builder);
 						pos = line.to + 1;
 					}
 				}
@@ -62,6 +66,7 @@ export function buildEditorExtension(plugin: TaggablePlugin): Extension {
 			}
 
 			private decorateLine(
+				view: EditorView,
 				text: string,
 				lineFrom: number,
 				builder: RangeSetBuilder<Decoration>
@@ -85,7 +90,7 @@ export function buildEditorExtension(plugin: TaggablePlugin): Extension {
 						})
 					);
 
-					// Mark decoration — dims the marker text (label + separator)
+					// Mark decoration — hide or faint the marker text (label + separator)
 					const prefix = match[1] ?? '';
 					const label = match[2] ?? '';
 					const sep = match[3] ?? '';
@@ -93,17 +98,35 @@ export function buildEditorExtension(plugin: TaggablePlugin): Extension {
 					const markerEnd = markerStart + label.length + sep.length;
 
 					if (markerStart < markerEnd) {
-						// Always use faint in the editor — hiding via display:none in CM6
-						// breaks cursor navigation, so we dim instead.
+						const revealMarker =
+							!plugin.settings.showMarkerFaintly &&
+							this.shouldRevealMarker(view, markerStart);
+
 						builder.add(
 							markerStart,
 							markerEnd,
-							Decoration.mark({ class: 'taggable-marker taggable-marker-faint' })
+							Decoration.mark({
+								class: plugin.settings.showMarkerFaintly || revealMarker
+									? 'taggable-marker taggable-marker-faint'
+									: 'taggable-marker taggable-marker-hidden',
+							})
 						);
 					}
 
 					break; // longest match wins — stop after first match
 				}
+			}
+
+			private shouldRevealMarker(view: EditorView, markerStart: number): boolean {
+				const markerLine = view.state.doc.lineAt(markerStart);
+				for (const range of view.state.selection.ranges) {
+					const fromLine = view.state.doc.lineAt(range.from);
+					const toLine = view.state.doc.lineAt(range.to);
+					if (fromLine.number <= markerLine.number && toLine.number >= markerLine.number) {
+						return true;
+					}
+				}
+				return false;
 			}
 		},
 		{ decorations: instance => instance.decorations }

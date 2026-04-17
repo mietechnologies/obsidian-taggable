@@ -23,10 +23,19 @@ export function escapeRegex(str: string): string {
 }
 
 export function isValidHex(color: string): boolean {
-	return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(color.trim());
+	return /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(color.trim());
+}
+
+export function normalizeHex(color: string): string {
+	const trimmed = color.trim();
+	return trimmed.startsWith('#') ? trimmed : `#${trimmed}`;
 }
 
 export function isExcluded(file: TFile, settings: TaggableSettings): boolean {
+	if (file.path === settings.tagDefinitionFile) {
+		return true;
+	}
+
 	const excludedFiles = settings.excludedFiles
 		.split('\n')
 		.map(s => s.trim())

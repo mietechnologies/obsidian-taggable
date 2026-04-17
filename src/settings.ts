@@ -155,7 +155,7 @@ export class TaggableSettingTab extends PluginSettingTab {
 			.setName('Show marker faintly instead of hiding')
 			.setDesc(
 				'When enabled, the raw marker text (e.g. TASK ::) is shown at reduced opacity instead of being hidden. ' +
-				'In the editor, the marker is always shown faintly regardless of this setting.'
+				'When disabled, editor markers reappear faintly while the cursor is on the tagged line.'
 			)
 			.addToggle(toggle =>
 				toggle

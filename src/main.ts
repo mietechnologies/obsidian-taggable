@@ -1,18 +1,18 @@
-import { debounce, Notice, Plugin, TFile } from 'obsidian';
+import { debounce, MarkdownView, Notice, Plugin, TFile } from 'obsidian';
 import { DEFAULT_SETTINGS, TaggableSettingTab, TaggableSettings } from './settings';
 import { parseTagFile, TagDefinition } from './tagParser';
 import { buildMatchers, CompiledMatcher } from './matcher';
 import { buildOccurrenceIndex, OccurrenceIndex } from './occurrenceIndex';
-import { processReadingViewElement } from './readingViewRenderer';
+import { processReadingViewElement, refreshReadingViewElement } from './readingViewRenderer';
 import { buildEditorExtension } from './editorExtension';
 import { TagBrowserView, TAG_BROWSER_VIEW_TYPE } from './tagBrowserView';
 import { isExcluded } from './utils';
 
 const DEFAULT_TAG_FILE_CONTENT =
-`TASK :: #ff33aa
-IDEA :: #33ccff
-WAITING :: #ffaa00
-NEXT ACTION :: #66cc66
+`TASK :: ff33aa
+IDEA :: 33ccff
+WAITING :: ffaa00
+NEXT ACTION :: 66cc66
 `;
 
 export default class TaggablePlugin extends Plugin {
@@ -137,6 +137,7 @@ export default class TaggablePlugin extends Plugin {
 			this.occurrenceIndex = null;
 			this.matchersVersion++;
 			this.refreshTagBrowser();
+			this.refreshReadingViews();
 			return;
 		}
 
@@ -153,6 +154,7 @@ export default class TaggablePlugin extends Plugin {
 		this.matchersVersion++;
 
 		this.refreshTagBrowser();
+		this.refreshReadingViews();
 
 		// Build occurrence index asynchronously so we don't block the UI
 		void this.buildIndex(++this.buildIndexVersion);
@@ -177,6 +179,14 @@ export default class TaggablePlugin extends Plugin {
 		for (const leaf of this.app.workspace.getLeavesOfType(TAG_BROWSER_VIEW_TYPE)) {
 			if (leaf.view instanceof TagBrowserView) {
 				void leaf.view.render();
+			}
+		}
+	}
+
+	private refreshReadingViews(): void {
+		for (const leaf of this.app.workspace.getLeavesOfType('markdown')) {
+			if (leaf.view instanceof MarkdownView && leaf.view.getMode() === 'preview') {
+				refreshReadingViewElement(leaf.view.previewMode.containerEl, this.matchers, this.settings);
 			}
 		}
 	}

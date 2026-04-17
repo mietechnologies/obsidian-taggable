@@ -12,10 +12,10 @@ You define named markers with colors in a single markdown file. Any note line th
 2. Add tag definitions, one per line:
 
 ```
-TASK :: #ff33aa
-IDEA :: #33ccff
-WAITING :: #ffaa00
-NEXT ACTION :: #66cc66
+TASK :: ff33aa
+IDEA :: 33ccff
+WAITING :: ffaa00
+NEXT ACTION :: 66cc66
 ```
 
 3. In any note, prefix a line with a defined marker:
@@ -39,7 +39,7 @@ LABEL <separator> <hex color>
 
 - **LABEL** — any text, including spaces (multi-word labels supported)
 - **separator** — defaults to `::`, configurable in settings
-- **hex color** — `#RGB` or `#RRGGBB` format
+- **hex color** — `RGB` or `RRGGBB` format is preferred; `#RGB` and `#RRGGBB` are still accepted for compatibility
 
 Lines beginning with `#` or `//` are treated as comments and ignored. Blank lines are ignored.
 
@@ -47,14 +47,14 @@ Lines beginning with `#` or `//` are treated as comments and ignored. Blank line
 
 ```
 # Status tags
-TASK :: #ff33aa
-IDEA :: #33ccff
-WAITING :: #ffaa00
-NEXT ACTION :: #66cc66
+TASK :: ff33aa
+IDEA :: 33ccff
+WAITING :: ffaa00
+NEXT ACTION :: 66cc66
 
 // Project tags
-BLOCKED :: #ff4444
-DONE :: #44cc44
+BLOCKED :: ff4444
+DONE :: 44cc44
 ```
 
 ---
@@ -99,7 +99,7 @@ npm run build  # production build
 | Case-sensitive matching | off | Treat `TASK` and `task` as distinct |
 | Only match near line start in editor | on | Require marker near the beginning of a line for editor highlighting and occurrence scanning |
 | Background opacity | 0.15 | Opacity of the colored background tint (0–1) |
-| Show marker faintly | off | Dim the marker instead of hiding it in reading view |
+| Show marker faintly | off | Dim the marker instead of hiding it; when off, editor markers reappear on the active tagged line |
 | Excluded files | _(empty)_ | One file path or name per line — skipped for scanning and styling |
 | Excluded folders | _(empty)_ | One folder path per line — skipped for scanning and styling |
 
@@ -129,8 +129,8 @@ Click any tag row to expand a list of files that contain it, sorted by occurrenc
 
 | | Reading view | Editor / live preview |
 |---|---|---|
-| Marker hiding | Hidden completely (or faint, per setting) | Always shown faintly — hiding via `display:none` breaks cursor navigation in CM6 |
-| Reliability | High — DOM post-processing on rendered HTML | Good — CM6 ViewPlugin; decorations rebuild on any document or viewport change |
+| Marker hiding | Hidden completely (or faint, per setting) | Hidden completely (or faint, per setting); hidden markers reappear on the active tagged line |
+| Reliability | High — DOM post-processing on rendered HTML | Good — CM6 ViewPlugin; decorations rebuild on document, selection, viewport, or matcher changes |
 | When styled | On note render | On every visible-range update (next interaction after tag reload) |
 
 ---

@@ -1,4 +1,4 @@
-import { isValidHex } from './utils';
+import { isValidHex, normalizeHex } from './utils';
 
 export interface TagDefinition {
 	label: string;
@@ -40,7 +40,7 @@ export function parseTagFile(content: string, separator: string): ParseResult {
 			continue;
 		}
 
-		tags.push({ label, color });
+		tags.push({ label, color: normalizeHex(color) });
 	}
 
 	return { tags, warnings };
