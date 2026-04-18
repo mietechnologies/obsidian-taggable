@@ -77,26 +77,31 @@ export function buildEditorExtension(plugin: TaggablePlugin): Extension {
 
 					const color = matcher.tag.color;
 					const rgba = hexToRgba(color, plugin.settings.backgroundOpacity);
+					const lineEnd = lineFrom + text.length;
 
-					// Line decoration — applies styling to the entire .cm-line element
-					builder.add(
-						lineFrom,
-						lineFrom,
-						Decoration.line({
-							attributes: {
-								class: 'taggable-tagged-line',
-								style: `border-left: 3px solid ${color}; background-color: ${rgba}; padding-left: 0.6em;`,
-							},
-						})
-					);
-
-					// Mark decoration — hide or faint the marker text (label + separator)
+					// The prefix includes indentation, bullet/numbering, and checkbox text.
+					// Styling starts after that prefix so nested items keep their visual indent.
 					const prefix = match[1] ?? '';
 					const label = match[2] ?? '';
 					const sep = match[3] ?? '';
-					const markerStart = lineFrom + prefix.length;
+					const contentStart = lineFrom + prefix.length;
+					const markerStart = contentStart;
 					const markerEnd = markerStart + label.length + sep.length;
 
+					if (contentStart < lineEnd) {
+						builder.add(
+							contentStart,
+							lineEnd,
+							Decoration.mark({
+								attributes: {
+									class: 'taggable-tagged-content',
+									style: `border-left: 3px solid ${color}; background-color: ${rgba}; padding-left: 0.6em; border-radius: 2px; box-decoration-break: clone; -webkit-box-decoration-break: clone;`,
+								},
+							})
+						);
+					}
+
+					// Hide or faint the marker text (label + separator) within the tagged content.
 					if (markerStart < markerEnd) {
 						const revealMarker =
 							!plugin.settings.showMarkerFaintly &&
